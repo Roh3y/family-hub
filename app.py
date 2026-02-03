@@ -54,32 +54,6 @@ if page == "Shopping List":
                     st.success(f"Added {new_item} for {final_store}!")
                     st.rerun()
 
-    else:
-        st.info("Your shopping list is empty. Add something below!")
-
-    # Add New Item Form
-    st.divider()
-    st.subheader("➕ Add New Item")
-    with st.form("add_shopping_item", clear_on_submit=True):
-        new_item = st.text_input("Item Name")
-        new_store = st.selectbox("Store", ["Coles", "Woolworths", "PetStock", "Bunnings", "Other"])
-        new_price = st.number_input("Estimated Price ($)", min_value=0.0, step=0.50)
-        
-        submitted = st.form_submit_button("Add to List")
-        
-        if submitted:
-            if new_item:
-                # Create a new row
-                new_data = pd.DataFrame([{"Item": new_item, "Store": new_store, "Status": "Pending", "Price": new_price}])
-                # Combine old data with new row
-                updated_df = pd.concat([df, new_data], ignore_index=True)
-                # Save back to Google Sheets
-                conn.update(worksheet="Shopping", data=updated_df)
-                st.success(f"Added {new_item}!")
-                st.rerun()
-            else:
-                st.warning("Please enter an item name.")
-
 # --- BILLS TRACKER LOGIC ---
 elif page == "Bills Tracker":
     st.header("💸 Bills & Expenses")
@@ -102,3 +76,4 @@ elif page == "Bills Tracker":
     else:
 
         st.info("No bills found.")
+
