@@ -17,46 +17,41 @@ except Exception as e:
 # 3. Sidebar Navigation
 page = st.sidebar.radio("Menu", ["Shopping List", "Bills Tracker"])
 
-# --- SHOPPING LIST LOGIC ---
+# --- SHOPPING LIST PAGE ---
 if page == "Shopping List":
     st.header("🛒 Shopping List")
+    df = conn.read(worksheet="Shopping", ttl=0)
     
-    # Read Data (ttl=0 means 'don't cache, reload every time')
-    try:
-        df = conn.read(worksheet="Shopping", ttl=0)
-    except Exception as e:
-        st.error(f"Could not read 'Shopping' tab. Check if the tab exists in Google Sheets. Error: {e}")
-        st.stop()
-    
-    # Check if dataframe is valid
-    if df is not None and not df.empty:
-        # Filter by Store
-        # We ensure 'Store' column exists to avoid crash
-        if "Store" in df.columns:
-            stores = ["All"] + sorted(df["Store"].dropna().unique().tolist())
-            selected_store = st.selectbox("Filter by Store", stores)
+    # 1. Dynamically get stores from your actual data
+    # This looks at your 'Store' column and finds unique names
+    if not df.empty and "Store" in df.columns:
+        existing_stores = sorted(df["Store"].dropna().unique().tolist())
+    else:
+        existing_stores = ["Coles", "Woolworths", "PetStock"]
+
+    # 2. Add New Item Form
+    with st.expander("➕ Add New Item"):
+        with st.form("add_form", clear_on_submit=True):
+            new_item = st.text_input("Item Name")
             
-            if selected_store != "All":
-                display_df = df[df["Store"] == selected_store]
-            else:
-                display_df = df
-        else:
-            display_df = df
-            st.warning("Column 'Store' not found in spreadsheet.")
-
-        # Show the Data
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
-
-        # "Mark as Bought" Feature
-        st.subheader("Update List")
-        if "Item" in display_df.columns:
-            item_to_remove = st.selectbox("Select item to mark as bought:", ["Select..."] + display_df["Item"].tolist())
-            if st.button("Mark as Bought (Remove)"):
-                if item_to_remove != "Select...":
-                    # Filter out the item to remove
-                    updated_df = df[df["Item"] != item_to_remove]
+            # Dropdown for existing stores + "New Store..." option
+            store_options = existing_stores + ["Add New Store..."]
+            selected_store = st.selectbox("Select Store", store_options)
+            
+            # Only show this text box if "Add New Store..." is selected
+            custom_store = st.text_input("Type new store name (if not in list above)")
+            
+            new_price = st.number_input("Price ($)", min_value=0.0)
+            
+            if st.form_submit_button("Add to List"):
+                # Determine which store name to use
+                final_store = custom_store if selected_store == "Add New Store..." else selected_store
+                
+                if new_item and final_store:
+                    new_row = pd.DataFrame([{"Item": new_item, "Store": final_store, "Status": "Pending", "Price": new_price}])
+                    updated_df = pd.concat([df, new_row], ignore_index=True)
                     conn.update(worksheet="Shopping", data=updated_df)
-                    st.success(f"Removed {item_to_remove}!")
+                    st.success(f"Added {new_item} for {final_store}!")
                     st.rerun()
 
     else:
@@ -105,4 +100,5 @@ elif page == "Bills Tracker":
             total_due = df_bills[unpaid_mask]["Amount"].sum()
             st.metric("Total Outstanding", f"${total_due:,.2f}")
     else:
+
         st.info("No bills found.")
