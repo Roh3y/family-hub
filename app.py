@@ -67,7 +67,7 @@ if page == "Shopping List":
     st.subheader("➕ Add New Item")
     with st.form("add_shopping_item", clear_on_submit=True):
         new_item = st.text_input("Item Name")
-        new_store = st.selectbox("Store", ["Coles", "Woolworths", "PetStock", "Bunnings", "Other"])
+        new_store = st.selectbox("Store", ["Aldi", "Bunnings", "Butcher", "Costco", "Harris Farm", "Health Foods", "Mountain Creek", "Woolies", "Other"])
         new_price = st.number_input("Estimated Price ($)", min_value=0.0, step=0.50)
         
         submitted = st.form_submit_button("Add to List")
@@ -106,3 +106,4 @@ elif page == "Bills Tracker":
             st.metric("Total Outstanding", f"${total_due:,.2f}")
     else:
         st.info("No bills found.")
+
