@@ -28,20 +28,26 @@ if page == "Shopping List":
         st.stop()
     
     if df is not None and not df.empty:
+        # Clean column names just in case
+        df.columns = [str(c).strip() for c in df.columns]
+
         # Filter Logic
         if "Store" in df.columns:
             store_list = ["All Stores"] + sorted(df["Store"].dropna().unique().tolist())
             selected_filter = st.selectbox("🔍 Filter by Store", store_list)
             
             if selected_filter != "All Stores":
-                display_df = df[df["Store"] == selected_filter]
+                display_df = df[df["Store"] == selected_filter].copy()
             else:
-                display_df = df
+                display_df = df.copy()
         else:
-            display_df = df
+            display_df = df.copy()
 
-        # Only show relevant columns: Item, Quantity, Store
-        # We explicitly exclude 'Status' and 'Price'
+        # UI FIX: Align Quantity to the left by converting to string
+        if "Quantity" in display_df.columns:
+            display_df["Quantity"] = display_df["Quantity"].astype(str)
+
+        # Only show relevant columns: Item, Quantity, Store, Comment
         cols_to_hide = ['status', 'price']
         cols_to_show = [c for c in display_df.columns if c.lower() not in cols_to_hide]
         
@@ -64,17 +70,22 @@ if page == "Shopping List":
     st.subheader("➕ Add New Item")
     with st.form("add_shopping_item", clear_on_submit=True):
         new_item = st.text_input("Item Name")
-        new_qty = st.number_input("Quantity", min_value=1, step=1, value=1)
-        new_store = st.selectbox("Store", ["Aldi", "Bunnings", "Butcher", "Costco", "Fruit&Veg", "Harris Farm", "Health Foods", "Mountain Creek", "Woolies", "Other"])
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            new_qty = st.number_input("Quantity", min_value=1, step=1, value=1)
+        with col2:
+            new_store = st.selectbox("Store", ["Aldi", "Bunnings", "Butcher", "Costco", "Fruit&Veg", "Harris Farm", "Health Foods", "Mountain Creek", "Woolies", "Other"])
+        
+        new_comment = st.text_input("Comment (e.g. 'On Special', 'Half Price')")
         
         if st.form_submit_button("Add to List"):
             if new_item:
-                # Adding new row with Quantity and dummy values for hidden columns
                 new_row = pd.DataFrame([{
                     "Item": new_item, 
                     "Quantity": new_qty, 
                     "Store": new_store, 
-                    "Status": "Pending", # Kept in background for sheet structure
+                    "Comment": new_comment,
+                    "Status": "Pending", 
                     "Price": 0
                 }])
                 updated_df = pd.concat([df, new_row], ignore_index=True)
