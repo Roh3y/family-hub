@@ -28,7 +28,6 @@ if page == "Shopping List":
         st.stop()
     
     if df is not None and not df.empty:
-        # Clean column names just in case
         df.columns = [str(c).strip() for c in df.columns]
 
         # Filter Logic
@@ -43,11 +42,11 @@ if page == "Shopping List":
         else:
             display_df = df.copy()
 
-        # UI FIX: Align Quantity to the left by converting to string
+        # UI FIX: Ensure Quantity is a whole number string for left alignment
         if "Quantity" in display_df.columns:
-            display_df["Quantity"] = display_df["Quantity"].astype(str)
+            display_df["Quantity"] = pd.to_numeric(display_df["Quantity"], errors='coerce').fillna(0).astype(int).astype(str)
 
-        # Only show relevant columns: Item, Quantity, Store, Comment
+        # Only show relevant columns
         cols_to_hide = ['status', 'price']
         cols_to_show = [c for c in display_df.columns if c.lower() not in cols_to_hide]
         
@@ -72,17 +71,24 @@ if page == "Shopping List":
         new_item = st.text_input("Item Name")
         col1, col2 = st.columns([1, 2])
         with col1:
+            # Whole number only
             new_qty = st.number_input("Quantity", min_value=1, step=1, value=1)
         with col2:
-            new_store = st.selectbox("Store", ["Aldi", "Bunnings", "Butcher", "Costco", "Fruit&Veg", "Harris Farm", "Health Foods", "Mountain Creek", "Woolies", "Other"])
+            # Default to blank entry
+            store_options = [""] + ["Aldi", "Bunnings", "Butcher", "Costco", "Fruit&Veg", "Harris Farm", "Health Foods", "Mountain Creek", "Woolies", "Other"]
+            new_store = st.selectbox("Store", store_options, index=0)
         
         new_comment = st.text_input("Comment (e.g. 'On Special', 'Half Price')")
         
         if st.form_submit_button("Add to List"):
-            if new_item:
+            if not new_item:
+                st.warning("Please enter an item name.")
+            elif not new_store:
+                st.warning("Please select a store.")
+            else:
                 new_row = pd.DataFrame([{
                     "Item": new_item, 
-                    "Quantity": new_qty, 
+                    "Quantity": int(new_qty), 
                     "Store": new_store, 
                     "Comment": new_comment,
                     "Status": "Pending", 
@@ -90,7 +96,7 @@ if page == "Shopping List":
                 }])
                 updated_df = pd.concat([df, new_row], ignore_index=True)
                 conn.update(worksheet="Shopping", data=updated_df)
-                st.success(f"Added {new_qty}x {new_item}!")
+                st.success(f"Added {int(new_qty)}x {new_item}!")
                 st.rerun()
 
 # --- BILLS TRACKER LOGIC ---
