@@ -14,8 +14,8 @@ except Exception as e:
     st.error("Error loading secrets.toml. Please check your Private Key format.")
     st.stop()
 
-# 3. Sidebar Navigation
-page = st.sidebar.radio("Menu", ["Shopping List", "Calendar", "Bills Tracker", "Pizza's Growth", "Water Tests"])
+# 3. Sidebar Navigation (Water Tests removed)
+page = st.sidebar.radio("Menu", ["Shopping List", "Calendar", "Bills Tracker", "Pizza's Growth"])
 
 # --- SHOPPING LIST LOGIC ---
 if page == "Shopping List":
@@ -63,7 +63,7 @@ if page == "Shopping List":
                     st.success(f"Removed {item_to_remove} from list!")
                     st.rerun()
     else:
-        st.info("Your shopping list is empty. Add something below!")
+        st.info("Your shopping list is empty.")
 
     st.divider()
     st.subheader("➕ Add New Item")
@@ -76,13 +76,11 @@ if page == "Shopping List":
             store_options = [""] + ["Aldi", "Bunnings", "Butcher", "Costco", "Fruit&Veg", "Harris Farm", "Health Foods", "Mountain Creek", "Woolies", "Other"]
             new_store = st.selectbox("Store", store_options, index=0)
         
-        new_comment = st.text_input("Comment (e.g. 'On Special', 'Half Price')")
+        new_comment = st.text_input("Comment")
         
         if st.form_submit_button("Add to List"):
-            if not new_item:
-                st.warning("Please enter an item name.")
-            elif not new_store:
-                st.warning("Please select a store.")
+            if not new_item or not new_store:
+                st.warning("Item and Store are required.")
             else:
                 new_row = pd.DataFrame([{
                     "Item": new_item, 
@@ -104,7 +102,7 @@ elif page == "Calendar":
     try:
         df_cal = conn.read(worksheet="Calendar", ttl=0)
     except:
-        st.error("Missing 'Calendar' tab. Columns needed: Date, Event, Start Time, End Time, Who")
+        st.error("Missing 'Calendar' tab.")
         st.stop()
 
     with st.expander("➕ Add New Event"):
@@ -138,12 +136,8 @@ elif page == "Calendar":
                     st.warning("Please provide a description and select at least one person.")
 
     if not df_cal.empty:
-        # Convert Date and handle empty Start Times for sorting
         df_cal["Date"] = pd.to_datetime(df_cal["Date"])
         df_cal["Start Time"] = df_cal["Start Time"].fillna("00:00").replace("", "00:00")
-        
-        # --- THE SORTING FIX ---
-        # Sort by Date first, then by Start Time
         df_cal = df_cal.sort_values(by=["Date", "Start Time"])
         
         st.subheader("🔍 Filter Schedule")
@@ -168,7 +162,6 @@ elif page == "Calendar":
         st.subheader(f"Results for {selected_who}")
         if not display_df.empty:
             display_df["Date"] = display_df["Date"].dt.strftime("%d/%m/%y")
-            # Replace 00:00 with blank for display if it was just a placeholder
             display_df["Start Time"] = display_df["Start Time"].replace("00:00", "")
             st.dataframe(display_df[["Date", "Start Time", "End Time", "Event", "Who"]], use_container_width=True, hide_index=True)
         else:
@@ -176,7 +169,6 @@ elif page == "Calendar":
 
         st.divider()
         with st.expander("📝 Edit or Delete Entries"):
-            # Ensure sort is consistent in the edit dropdown too
             df_cal["Edit_Label"] = df_cal["Date"].dt.strftime("%d/%m/%y") + " [" + df_cal["Start Time"] + "] - " + df_cal["Event"]
             choice = st.selectbox("Select an entry to modify:", ["Select..."] + df_cal["Edit_Label"].tolist())
             
@@ -242,33 +234,10 @@ elif page == "Pizza's Growth":
                     new_entry = pd.DataFrame([{"Date": m_date.strftime("%Y-%m-%d"), "Length": m_len}])
                     updated_g = pd.concat([df_growth, new_entry], ignore_index=True)
                     conn.update(worksheet="Growth", data=updated_g)
+                    st.success("Logged!")
                     st.rerun()
         if not df_growth.empty:
             df_growth["Date"] = pd.to_datetime(df_growth["Date"])
             st.line_chart(df_growth.sort_values("Date"), x="Date", y="Length")
+            st.info(f"Started at 43mm on 1 Feb 2026.")
     except: st.error("Could not read Growth tab.")
-
-# --- WATER TESTS LOGIC ---
-elif page == "Water Tests":
-    st.header("💧 Aquarium Water Tests")
-    try:
-        df_water = conn.read(worksheet="Water", ttl=0)
-        with st.expander("🧪 Log New Test"):
-            with st.form("water_form"):
-                t_date = st.date_input("Date", value=date.today())
-                tank = st.selectbox("Tank", ["154L", "20L"])
-                c1, c2 = st.columns(2)
-                with c1:
-                    ph = st.selectbox("pH", [6.0, 6.3, 6.6, 7.0, 7.3, 7.5, 7.8])
-                    am = st.selectbox("Ammonia (ppm)", [0.0, 0.5, 1.0, 5.0, 10.0])
-                with c2:
-                    ni = st.selectbox("Nitrite (ppm)", [0.0, 0.1, 0.25, 0.5, 1.0, 2.0])
-                    na = st.selectbox("Nitrate (ppm)", [0.0, 2.5, 5.0, 10.0, 20.0, 40.0])
-                if st.form_submit_button("Save Results"):
-                    new_w = pd.DataFrame([{"Date": t_date.strftime("%Y-%m-%d"), "Tank": tank, "pH": ph, "Ammonia": am, "Nitrite": ni, "Nitrate": na}])
-                    conn.update(worksheet="Water", data=pd.concat([df_water, new_w], ignore_index=True))
-                    st.rerun()
-        if not df_water.empty:
-            t_filter = st.radio("View Tank:", ["154L", "20L"], horizontal=True)
-            st.dataframe(df_water[df_water["Tank"] == t_filter].sort_values("Date", ascending=False), hide_index=True)
-    except: st.error("Could not read Water tab.")
