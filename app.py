@@ -119,7 +119,7 @@ elif page == "Calendar":
                 e_date = st.date_input("Date", value=date.today())
                 e_time = st.time_input("Time", value=None) # Optional time
             with c2:
-                e_who = st.selectbox("Who is this for?", ["Family", "Me", "Partner", "Kids", "Pets"])
+                e_who = st.selectbox("Who is this for?", ["Family", "Rohan", "Debbie", "Emma", "Sarah", "Coco"])
                 e_desc = st.text_input("Event Description")
             
             if st.form_submit_button("Save Event"):
@@ -249,3 +249,4 @@ elif page == "Water Tests":
     if not df_water.empty:
         t_filter = st.radio("View Tank:", ["154L", "20L"], horizontal=True)
         st.dataframe(df_water[df_water["Tank"] == t_filter].sort_values("Date", ascending=False), use_container_width=True, hide_index=True)
+
