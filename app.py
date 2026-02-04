@@ -5,7 +5,7 @@ from datetime import date
 
 # 1. Page Setup
 st.set_page_config(page_title="Family Hub", layout="wide")
-st.title("😍 Family Hub 😍")
+st.title("😍 Family Hub")
 
 # 2. Connection Setup
 try:
@@ -168,5 +168,6 @@ elif page == "Water Tests":
     if not df_water.empty:
         t_filter = st.radio("View Tank:", ["154L", "20L"], horizontal=True)
         st.dataframe(df_water[df_water["Tank"] == t_filter].sort_values("Date", ascending=False), use_container_width=True, hide_index=True)
+
 
 
