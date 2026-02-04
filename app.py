@@ -5,7 +5,7 @@ from datetime import date
 
 # 1. Page Setup
 st.set_page_config(page_title="Family Hub", layout="wide")
-st.title("😍 Family Hub")
+st.title("🦘 Family Life Hub")
 
 # 2. Connection Setup
 try:
@@ -29,6 +29,10 @@ if page == "Shopping List":
     
     if df is not None and not df.empty:
         df.columns = [str(c).strip() for c in df.columns]
+
+        # SORTING LOGIC: Sort the entire dataframe by Store first, then Item
+        if "Store" in df.columns and "Item" in df.columns:
+            df = df.sort_values(by=["Store", "Item"])
 
         # Filter Logic
         if "Store" in df.columns:
@@ -55,7 +59,9 @@ if page == "Shopping List":
         # Mark as Bought
         st.subheader("Update List")
         if "Item" in display_df.columns:
-            item_to_remove = st.selectbox("Select item to mark as bought:", ["Select..."] + display_df["Item"].tolist())
+            # Sort the selection list by item name for easier finding
+            item_list = sorted(display_df["Item"].tolist())
+            item_to_remove = st.selectbox("Select item to mark as bought:", ["Select..."] + item_list)
             if st.button("Mark as Bought (Remove)"):
                 if item_to_remove != "Select...":
                     updated_df = df[df["Item"] != item_to_remove]
@@ -71,10 +77,8 @@ if page == "Shopping List":
         new_item = st.text_input("Item Name")
         col1, col2 = st.columns([1, 2])
         with col1:
-            # Whole number only
             new_qty = st.number_input("Quantity", min_value=1, step=1, value=1)
         with col2:
-            # Default to blank entry
             store_options = [""] + ["Aldi", "Bunnings", "Butcher", "Costco", "Fruit&Veg", "Harris Farm", "Health Foods", "Mountain Creek", "Woolies", "Other"]
             new_store = st.selectbox("Store", store_options, index=0)
         
@@ -168,6 +172,3 @@ elif page == "Water Tests":
     if not df_water.empty:
         t_filter = st.radio("View Tank:", ["154L", "20L"], horizontal=True)
         st.dataframe(df_water[df_water["Tank"] == t_filter].sort_values("Date", ascending=False), use_container_width=True, hide_index=True)
-
-
-
