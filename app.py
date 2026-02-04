@@ -40,8 +40,11 @@ if page == "Shopping List":
         else:
             display_df = df
 
-        # REMOVED PRICE COLUMN from display
-        cols_to_show = [c for c in display_df.columns if c.lower() != 'price']
+        # Only show relevant columns: Item, Quantity, Store
+        # We explicitly exclude 'Status' and 'Price'
+        cols_to_hide = ['status', 'price']
+        cols_to_show = [c for c in display_df.columns if c.lower() not in cols_to_hide]
+        
         st.dataframe(display_df[cols_to_show], use_container_width=True, hide_index=True)
 
         # Mark as Bought
@@ -52,7 +55,7 @@ if page == "Shopping List":
                 if item_to_remove != "Select...":
                     updated_df = df[df["Item"] != item_to_remove]
                     conn.update(worksheet="Shopping", data=updated_df)
-                    st.success(f"Removed {item_to_remove}!")
+                    st.success(f"Removed {item_to_remove} from list!")
                     st.rerun()
     else:
         st.info("Your shopping list is empty. Add something below!")
@@ -61,17 +64,22 @@ if page == "Shopping List":
     st.subheader("➕ Add New Item")
     with st.form("add_shopping_item", clear_on_submit=True):
         new_item = st.text_input("Item Name")
+        new_qty = st.number_input("Quantity", min_value=1, step=1, value=1)
         new_store = st.selectbox("Store", ["Aldi", "Bunnings", "Butcher", "Costco", "Fruit&Veg", "Harris Farm", "Health Foods", "Mountain Creek", "Woolies", "Other"])
-        
-        # PRICE INPUT REMOVED FROM FORM
         
         if st.form_submit_button("Add to List"):
             if new_item:
-                # Still including 'Price': 0 in the data to match your current sheet structure
-                new_row = pd.DataFrame([{"Item": new_item, "Store": new_store, "Status": "Pending", "Price": 0}])
+                # Adding new row with Quantity and dummy values for hidden columns
+                new_row = pd.DataFrame([{
+                    "Item": new_item, 
+                    "Quantity": new_qty, 
+                    "Store": new_store, 
+                    "Status": "Pending", # Kept in background for sheet structure
+                    "Price": 0
+                }])
                 updated_df = pd.concat([df, new_row], ignore_index=True)
                 conn.update(worksheet="Shopping", data=updated_df)
-                st.success(f"Added {new_item}!")
+                st.success(f"Added {new_qty}x {new_item}!")
                 st.rerun()
 
 # --- BILLS TRACKER LOGIC ---
