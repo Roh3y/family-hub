@@ -2,7 +2,6 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import date, timedelta, datetime
-import streamlit.components.v1 as components
 
 # 1. Page Setup
 st.set_page_config(page_title="Family Hub", layout="wide")
@@ -21,6 +20,7 @@ page = st.sidebar.radio("Menu", ["Shopping List", "Calendar", "Bills Tracker", "
 # --- SHOPPING LIST LOGIC ---
 if page == "Shopping List":
     st.header("🛒 Shopping List")
+    
     try:
         df = conn.read(worksheet="Shopping", ttl=0)
     except Exception as e:
@@ -29,12 +29,18 @@ if page == "Shopping List":
     
     if df is not None and not df.empty:
         df.columns = [str(c).strip() for c in df.columns]
+
         if "Store" in df.columns and "Item" in df.columns:
             df = df.sort_values(by=["Store", "Item"])
+
         if "Store" in df.columns:
             store_list = ["All Stores"] + sorted(df["Store"].dropna().unique().tolist())
             selected_filter = st.selectbox("🔍 Filter by Store", store_list)
-            display_df = df[df["Store"] == selected_filter].copy() if selected_filter != "All Stores" else df.copy()
+            
+            if selected_filter != "All Stores":
+                display_df = df[df["Store"] == selected_filter].copy()
+            else:
+                display_df = df.copy()
         else:
             display_df = df.copy()
 
@@ -43,6 +49,7 @@ if page == "Shopping List":
 
         cols_to_hide = ['status', 'price']
         cols_to_show = [c for c in display_df.columns if c.lower() not in cols_to_hide]
+        
         st.dataframe(display_df[cols_to_show], use_container_width=True, hide_index=True)
 
         st.subheader("Update List")
@@ -56,7 +63,7 @@ if page == "Shopping List":
                     st.success(f"Removed {item_to_remove} from list!")
                     st.rerun()
     else:
-        st.info("Your shopping list is empty.")
+        st.info("Your shopping list is empty. Add something below!")
 
     st.divider()
     st.subheader("➕ Add New Item")
@@ -68,30 +75,36 @@ if page == "Shopping List":
         with col2:
             store_options = [""] + ["Aldi", "Bunnings", "Butcher", "Costco", "Fruit&Veg", "Harris Farm", "Health Foods", "Mountain Creek", "Woolies", "Other"]
             new_store = st.selectbox("Store", store_options, index=0)
-        new_comment = st.text_input("Comment")
+        
+        new_comment = st.text_input("Comment (e.g. 'On Special', 'Half Price')")
+        
         if st.form_submit_button("Add to List"):
-            if new_item and new_store:
-                new_row = pd.DataFrame([{"Item": new_item, "Quantity": int(new_qty), "Store": new_store, "Comment": new_comment, "Status": "Pending", "Price": 0}])
-                conn.update(worksheet="Shopping", data=pd.concat([df, new_row], ignore_index=True))
+            if not new_item:
+                st.warning("Please enter an item name.")
+            elif not new_store:
+                st.warning("Please select a store.")
+            else:
+                new_row = pd.DataFrame([{
+                    "Item": new_item, 
+                    "Quantity": int(new_qty), 
+                    "Store": new_store, 
+                    "Comment": new_comment,
+                    "Status": "Pending", 
+                    "Price": 0
+                }])
+                updated_df = pd.concat([df, new_row], ignore_index=True)
+                conn.update(worksheet="Shopping", data=updated_df)
                 st.success(f"Added {int(new_qty)}x {new_item}!")
                 st.rerun()
-            else:
-                st.warning("Please enter item and store.")
 
 # --- CALENDAR LOGIC ---
 elif page == "Calendar":
     st.header("📅 Family Calendar")
-
-# --- WEATHER WIDGET (STABLE VERSION) ---
-    with st.expander("🌤️ Check Jerrabomberra Weather", expanded=True):
-        # We use a direct iframe to ensure the height stays locked and visible
-        weather_url = "https://forecast7.com/en/n35d35149d23/jerrabomberra/"
-        st.components.v1.iframe(weather_url, height=350, scrolling=True)
-
+    
     try:
         df_cal = conn.read(worksheet="Calendar", ttl=0)
     except:
-        st.error("Missing 'Calendar' tab.")
+        st.error("Missing 'Calendar' tab. Columns needed: Date, Event, Start Time, End Time, Who")
         st.stop()
 
     with st.expander("➕ Add New Event"):
@@ -101,19 +114,36 @@ elif page == "Calendar":
             with c1: e_date = st.date_input("Date", value=date.today())
             with c2: e_start = st.time_input("Start Time", value=None)
             with c3: e_end = st.time_input("End Time", value=None)
+            
             e_who_list = st.multiselect("Who is this for?", ["Rohan", "Debbie", "Emma", "Sarah", "Coco"])
+            
             if st.form_submit_button("Save Event"):
                 if e_desc and e_who_list:
                     start_str = e_start.strftime("%H:%M") if e_start else "00:00"
                     end_str = e_end.strftime("%H:%M") if e_end else ""
-                    new_evt = pd.DataFrame([{"Date": e_date.strftime("%Y-%m-%d"), "Event": e_desc, "Start Time": start_str, "End Time": end_str, "Who": ", ".join(e_who_list)}])
-                    conn.update(worksheet="Calendar", data=pd.concat([df_cal, new_evt], ignore_index=True))
+                    who_str = ", ".join(e_who_list)
+                    
+                    new_evt = pd.DataFrame([{
+                        "Date": e_date.strftime("%Y-%m-%d"),
+                        "Event": e_desc,
+                        "Start Time": start_str,
+                        "End Time": end_str,
+                        "Who": who_str
+                    }])
+                    updated_cal = pd.concat([df_cal, new_evt], ignore_index=True)
+                    conn.update(worksheet="Calendar", data=updated_cal)
                     st.success("Event Added!")
                     st.rerun()
+                else:
+                    st.warning("Please provide a description and select at least one person.")
 
     if not df_cal.empty:
+        # Convert Date and handle empty Start Times for sorting
         df_cal["Date"] = pd.to_datetime(df_cal["Date"])
         df_cal["Start Time"] = df_cal["Start Time"].fillna("00:00").replace("", "00:00")
+        
+        # --- THE SORTING FIX ---
+        # Sort by Date first, then by Start Time
         df_cal = df_cal.sort_values(by=["Date", "Start Time"])
         
         st.subheader("🔍 Filter Schedule")
@@ -138,32 +168,52 @@ elif page == "Calendar":
         st.subheader(f"Results for {selected_who}")
         if not display_df.empty:
             display_df["Date"] = display_df["Date"].dt.strftime("%d/%m/%y")
+            # Replace 00:00 with blank for display if it was just a placeholder
             display_df["Start Time"] = display_df["Start Time"].replace("00:00", "")
             st.dataframe(display_df[["Date", "Start Time", "End Time", "Event", "Who"]], use_container_width=True, hide_index=True)
+        else:
+            st.info("No events found for this selection.")
 
         st.divider()
         with st.expander("📝 Edit or Delete Entries"):
+            # Ensure sort is consistent in the edit dropdown too
             df_cal["Edit_Label"] = df_cal["Date"].dt.strftime("%d/%m/%y") + " [" + df_cal["Start Time"] + "] - " + df_cal["Event"]
-            choice = st.selectbox("Select entry:", ["Select..."] + df_cal["Edit_Label"].tolist())
+            choice = st.selectbox("Select an entry to modify:", ["Select..."] + df_cal["Edit_Label"].tolist())
+            
             if choice != "Select...":
                 row_idx = df_cal[df_cal["Edit_Label"] == choice].index[0]
                 row_data = df_cal.loc[row_idx]
+                
                 with st.form("edit_form"):
                     u_desc = st.text_input("Edit Description", value=row_data["Event"])
                     u_date = st.date_input("Edit Date", value=row_data["Date"])
+                    
                     def parse_t(t_str):
                         try: return datetime.strptime(t_str, "%H:%M").time()
                         except: return None
+
                     u_start = st.time_input("Edit Start", value=parse_t(row_data["Start Time"]))
                     u_end = st.time_input("Edit End", value=parse_t(row_data["End Time"]))
-                    u_who = st.text_input("Edit Who", value=row_data["Who"])
-                    c_save, c_del = st.columns(2)
-                    if c_save.form_submit_button("Update"):
-                        df_cal.loc[row_idx, ["Event", "Date", "Start Time", "End Time", "Who"]] = [u_desc, u_date.strftime("%Y-%m-%d"), u_start.strftime("%H:%M") if u_start else "00:00", u_end.strftime("%H:%M") if u_end else "", u_who]
-                        conn.update(worksheet="Calendar", data=df_cal.drop(columns=["Edit_Label"]))
+                    u_who = st.text_input("Edit Who (comma separated)", value=row_data["Who"])
+                    
+                    col_save, col_del = st.columns(2)
+                    if col_save.form_submit_button("Update Entry"):
+                        df_cal.loc[row_idx, "Event"] = u_desc
+                        df_cal.loc[row_idx, "Date"] = u_date.strftime("%Y-%m-%d")
+                        df_cal.loc[row_idx, "Start Time"] = u_start.strftime("%H:%M") if u_start else "00:00"
+                        df_cal.loc[row_idx, "End Time"] = u_end.strftime("%H:%M") if u_end else ""
+                        df_cal.loc[row_idx, "Who"] = u_who
+                        final_df = df_cal.drop(columns=["Edit_Label"])
+                        final_df["Date"] = pd.to_datetime(final_df["Date"]).dt.strftime("%Y-%m-%d")
+                        conn.update(worksheet="Calendar", data=final_df)
+                        st.success("Updated!")
                         st.rerun()
-                    if c_del.form_submit_button("🗑️ Delete"):
-                        conn.update(worksheet="Calendar", data=df_cal.drop(row_idx).drop(columns=["Edit_Label"]))
+                        
+                    if col_del.form_submit_button("🗑️ Delete Permanently"):
+                        final_df = df_cal.drop(row_idx).drop(columns=["Edit_Label"])
+                        final_df["Date"] = pd.to_datetime(final_df["Date"]).dt.strftime("%Y-%m-%d")
+                        conn.update(worksheet="Calendar", data=final_df)
+                        st.success("Deleted!")
                         st.rerun()
 
 # --- BILLS TRACKER LOGIC ---
@@ -175,8 +225,9 @@ elif page == "Bills Tracker":
             st.dataframe(df_bills, use_container_width=True, hide_index=True)
             if "Paid" in df_bills.columns and "Amount" in df_bills.columns:
                 unpaid_mask = df_bills["Paid"].astype(str).str.lower() != "yes"
-                st.metric("Total Outstanding", f"${df_bills[unpaid_mask]['Amount'].sum():,.2f}")
-    except: st.error("Error reading Bills.")
+                total_due = df_bills[unpaid_mask]["Amount"].sum()
+                st.metric("Total Outstanding", f"${total_due:,.2f}")
+    except: st.error("Could not read Bills tab.")
 
 # --- PIZZA'S GROWTH CHART ---
 elif page == "Pizza's Growth":
@@ -187,14 +238,15 @@ elif page == "Pizza's Growth":
             with st.form("pizza_form"):
                 m_date = st.date_input("Date", value=date.today())
                 m_len = st.number_input("Length (mm)", min_value=0.0, step=1.0)
-                if st.form_submit_button("Log"):
-                    new_e = pd.DataFrame([{"Date": m_date.strftime("%Y-%m-%d"), "Length": m_len}])
-                    conn.update(worksheet="Growth", data=pd.concat([df_growth, new_e]))
+                if st.form_submit_button("Log Growth"):
+                    new_entry = pd.DataFrame([{"Date": m_date.strftime("%Y-%m-%d"), "Length": m_len}])
+                    updated_g = pd.concat([df_growth, new_entry], ignore_index=True)
+                    conn.update(worksheet="Growth", data=updated_g)
                     st.rerun()
         if not df_growth.empty:
             df_growth["Date"] = pd.to_datetime(df_growth["Date"])
             st.line_chart(df_growth.sort_values("Date"), x="Date", y="Length")
-    except: st.error("Error reading Growth.")
+    except: st.error("Could not read Growth tab.")
 
 # --- WATER TESTS LOGIC ---
 elif page == "Water Tests":
@@ -212,12 +264,11 @@ elif page == "Water Tests":
                 with c2:
                     ni = st.selectbox("Nitrite (ppm)", [0.0, 0.1, 0.25, 0.5, 1.0, 2.0])
                     na = st.selectbox("Nitrate (ppm)", [0.0, 2.5, 5.0, 10.0, 20.0, 40.0])
-                if st.form_submit_button("Save"):
+                if st.form_submit_button("Save Results"):
                     new_w = pd.DataFrame([{"Date": t_date.strftime("%Y-%m-%d"), "Tank": tank, "pH": ph, "Ammonia": am, "Nitrite": ni, "Nitrate": na}])
-                    conn.update(worksheet="Water", data=pd.concat([df_water, new_w]))
+                    conn.update(worksheet="Water", data=pd.concat([df_water, new_w], ignore_index=True))
                     st.rerun()
         if not df_water.empty:
             t_filter = st.radio("View Tank:", ["154L", "20L"], horizontal=True)
             st.dataframe(df_water[df_water["Tank"] == t_filter].sort_values("Date", ascending=False), hide_index=True)
-    except: st.error("Error reading Water.")
-
+    except: st.error("Could not read Water tab.")
