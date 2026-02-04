@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import date, timedelta, datetime
 
 # 1. Page Setup
-st.set_page_config(page_title="Family Hub", layout="wide")
+st.set_set_page_config(page_title="Family Hub", layout="wide")
 st.title("😍 Family Life Hub")
 
 # 2. Connection Setup
@@ -30,11 +30,9 @@ if page == "Shopping List":
     if df is not None and not df.empty:
         df.columns = [str(c).strip() for c in df.columns]
 
-        # Sorting: Store first, then Item
         if "Store" in df.columns and "Item" in df.columns:
             df = df.sort_values(by=["Store", "Item"])
 
-        # Filter Logic
         if "Store" in df.columns:
             store_list = ["All Stores"] + sorted(df["Store"].dropna().unique().tolist())
             selected_filter = st.selectbox("🔍 Filter by Store", store_list)
@@ -46,17 +44,14 @@ if page == "Shopping List":
         else:
             display_df = df.copy()
 
-        # UI FIX: Ensure Quantity is a whole number string for left alignment
         if "Quantity" in display_df.columns:
             display_df["Quantity"] = pd.to_numeric(display_df["Quantity"], errors='coerce').fillna(0).astype(int).astype(str)
 
-        # Only show relevant columns
         cols_to_hide = ['status', 'price']
         cols_to_show = [c for c in display_df.columns if c.lower() not in cols_to_hide]
         
         st.dataframe(display_df[cols_to_show], use_container_width=True, hide_index=True)
 
-        # Mark as Bought
         st.subheader("Update List")
         if "Item" in display_df.columns:
             item_list = sorted(display_df["Item"].tolist())
@@ -112,7 +107,6 @@ elif page == "Calendar":
         st.error("Missing 'Calendar' tab. Columns needed: Date, Event, Start Time, End Time, Who")
         st.stop()
 
-    # --- INPUT FORM ---
     with st.expander("➕ Add New Event"):
         with st.form("add_event", clear_on_submit=True):
             e_desc = st.text_input("Event Description")
@@ -121,12 +115,11 @@ elif page == "Calendar":
             with c2: e_start = st.time_input("Start Time", value=None)
             with c3: e_end = st.time_input("End Time", value=None)
             
-            # Choose multiple family members
             e_who_list = st.multiselect("Who is this for?", ["Rohan", "Debbie", "Emma", "Sarah", "Coco"])
             
             if st.form_submit_button("Save Event"):
                 if e_desc and e_who_list:
-                    start_str = e_start.strftime("%H:%M") if e_start else ""
+                    start_str = e_start.strftime("%H:%M") if e_start else "00:00"
                     end_str = e_end.strftime("%H:%M") if e_end else ""
                     who_str = ", ".join(e_who_list)
                     
@@ -144,10 +137,14 @@ elif page == "Calendar":
                 else:
                     st.warning("Please provide a description and select at least one person.")
 
-    # --- DISPLAY & FILTER LOGIC ---
     if not df_cal.empty:
+        # Convert Date and handle empty Start Times for sorting
         df_cal["Date"] = pd.to_datetime(df_cal["Date"])
-        df_cal = df_cal.sort_values("Date")
+        df_cal["Start Time"] = df_cal["Start Time"].fillna("00:00").replace("", "00:00")
+        
+        # --- THE SORTING FIX ---
+        # Sort by Date first, then by Start Time
+        df_cal = df_cal.sort_values(by=["Date", "Start Time"])
         
         st.subheader("🔍 Filter Schedule")
         f_col1, f_col2 = st.columns(2)
@@ -157,7 +154,6 @@ elif page == "Calendar":
         with f_col2:
             selected_day = st.date_input("Jump to Specific Date", value=None)
 
-        # Apply Filtering
         display_df = df_cal.copy()
         if selected_who != "Everyone":
             display_df = display_df[display_df["Who"].str.contains(selected_who, na=False)]
@@ -165,23 +161,23 @@ elif page == "Calendar":
         if selected_day:
             display_df = display_df[display_df["Date"].dt.date == selected_day]
         else:
-            # Default to Next 2 Weeks
             today = pd.Timestamp(date.today())
             two_weeks_out = today + timedelta(days=14)
             display_df = display_df[(display_df["Date"] >= today) & (display_df["Date"] <= two_weeks_out)]
 
-        # Show Table
         st.subheader(f"Results for {selected_who}")
         if not display_df.empty:
             display_df["Date"] = display_df["Date"].dt.strftime("%d/%m/%y")
+            # Replace 00:00 with blank for display if it was just a placeholder
+            display_df["Start Time"] = display_df["Start Time"].replace("00:00", "")
             st.dataframe(display_df[["Date", "Start Time", "End Time", "Event", "Who"]], use_container_width=True, hide_index=True)
         else:
             st.info("No events found for this selection.")
 
-        # --- EDIT/DELETE SECTION ---
         st.divider()
         with st.expander("📝 Edit or Delete Entries"):
-            df_cal["Edit_Label"] = df_cal["Date"].dt.strftime("%d/%m/%y") + " - " + df_cal["Event"]
+            # Ensure sort is consistent in the edit dropdown too
+            df_cal["Edit_Label"] = df_cal["Date"].dt.strftime("%d/%m/%y") + " [" + df_cal["Start Time"] + "] - " + df_cal["Event"]
             choice = st.selectbox("Select an entry to modify:", ["Select..."] + df_cal["Edit_Label"].tolist())
             
             if choice != "Select...":
@@ -204,7 +200,7 @@ elif page == "Calendar":
                     if col_save.form_submit_button("Update Entry"):
                         df_cal.loc[row_idx, "Event"] = u_desc
                         df_cal.loc[row_idx, "Date"] = u_date.strftime("%Y-%m-%d")
-                        df_cal.loc[row_idx, "Start Time"] = u_start.strftime("%H:%M") if u_start else ""
+                        df_cal.loc[row_idx, "Start Time"] = u_start.strftime("%H:%M") if u_start else "00:00"
                         df_cal.loc[row_idx, "End Time"] = u_end.strftime("%H:%M") if u_end else ""
                         df_cal.loc[row_idx, "Who"] = u_who
                         final_df = df_cal.drop(columns=["Edit_Label"])
