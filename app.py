@@ -28,21 +28,21 @@ if page == "Shopping List":
         st.stop()
     
     if df is not None and not df.empty:
-        # FILTER LOGIC: Get unique stores for the dropdown
+        # Filter Logic
         if "Store" in df.columns:
             store_list = ["All Stores"] + sorted(df["Store"].dropna().unique().tolist())
             selected_filter = st.selectbox("🔍 Filter by Store", store_list)
             
-            # Apply Filter
             if selected_filter != "All Stores":
                 display_df = df[df["Store"] == selected_filter]
             else:
                 display_df = df
         else:
             display_df = df
-            st.warning("Column 'Store' not found in spreadsheet.")
 
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
+        # REMOVED PRICE COLUMN from display
+        cols_to_show = [c for c in display_df.columns if c.lower() != 'price']
+        st.dataframe(display_df[cols_to_show], use_container_width=True, hide_index=True)
 
         # Mark as Bought
         st.subheader("Update List")
@@ -62,11 +62,13 @@ if page == "Shopping List":
     with st.form("add_shopping_item", clear_on_submit=True):
         new_item = st.text_input("Item Name")
         new_store = st.selectbox("Store", ["Aldi", "Bunnings", "Butcher", "Costco", "Fruit&Veg", "Harris Farm", "Health Foods", "Mountain Creek", "Woolies", "Other"])
-        new_price = st.number_input("Estimated Price ($)", min_value=0.0, step=0.50)
+        
+        # PRICE INPUT REMOVED FROM FORM
         
         if st.form_submit_button("Add to List"):
             if new_item:
-                new_row = pd.DataFrame([{"Item": new_item, "Store": new_store, "Status": "Pending", "Price": new_price}])
+                # Still including 'Price': 0 in the data to match your current sheet structure
+                new_row = pd.DataFrame([{"Item": new_item, "Store": new_store, "Status": "Pending", "Price": 0}])
                 updated_df = pd.concat([df, new_row], ignore_index=True)
                 conn.update(worksheet="Shopping", data=updated_df)
                 st.success(f"Added {new_item}!")
@@ -92,7 +94,7 @@ elif page == "Pizza's Growth":
     try:
         df_growth = conn.read(worksheet="Growth", ttl=0)
     except:
-        st.error("Missing 'Growth' tab in Google Sheets.")
+        st.error("Missing 'Growth' tab.")
         st.stop()
 
     with st.expander("📏 Log New Measurement"):
@@ -117,7 +119,7 @@ elif page == "Water Tests":
     try:
         df_water = conn.read(worksheet="Water", ttl=0)
     except:
-        st.error("Missing 'Water' tab in Google Sheets.")
+        st.error("Missing 'Water' tab.")
         st.stop()
 
     with st.expander("🧪 Log New Test"):
