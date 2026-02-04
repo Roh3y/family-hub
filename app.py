@@ -82,15 +82,11 @@ if page == "Shopping List":
 elif page == "Calendar":
     st.header("📅 Family Calendar")
 
-    # --- WEATHER WIDGET ---
-    # Using a clean widget from weatherwidget.io
-    weather_html = """
-    <a class="weatherwidget-io" href="https://forecast7.com/en/n35d35149d23/jerrabomberra/" data-label_1="JERRABOMBERRA" data-label_2="WEATHER" data-theme="original" >JERRABOMBERRA WEATHER</a>
-    <script>
-    !function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src='https://weatherwidget.io/js/widget.min.js';fjs.parentNode.insertBefore(js,fjs);}}(document,'script','weatherwidget-io-js');
-    </script>
-    """
-    components.html(weather_html, height=150)
+# --- WEATHER WIDGET (STABLE VERSION) ---
+    with st.expander("🌤️ Check Jerrabomberra Weather", expanded=True):
+        # We use a direct iframe to ensure the height stays locked and visible
+        weather_url = "https://forecast7.com/en/n35d35149d23/jerrabomberra/"
+        st.components.v1.iframe(weather_url, height=350, scrolling=True)
 
     try:
         df_cal = conn.read(worksheet="Calendar", ttl=0)
@@ -224,3 +220,4 @@ elif page == "Water Tests":
             t_filter = st.radio("View Tank:", ["154L", "20L"], horizontal=True)
             st.dataframe(df_water[df_water["Tank"] == t_filter].sort_values("Date", ascending=False), hide_index=True)
     except: st.error("Error reading Water.")
+
