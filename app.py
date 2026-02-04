@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import date, timedelta, datetime
 
 # 1. Page Setup
-st.set_set_page_config(page_title="Family Hub", layout="wide")
+st.set_page_config(page_title="Family Hub", layout="wide")
 st.title("😍 Family Life Hub")
 
 # 2. Connection Setup
@@ -272,3 +272,4 @@ elif page == "Water Tests":
             t_filter = st.radio("View Tank:", ["154L", "20L"], horizontal=True)
             st.dataframe(df_water[df_water["Tank"] == t_filter].sort_values("Date", ascending=False), hide_index=True)
     except: st.error("Could not read Water tab.")
+
